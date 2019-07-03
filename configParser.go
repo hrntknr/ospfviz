@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func configParser(fd *os.File) error {
+func configParser(fd *os.File) (*[]Router, error) {
 	reader := bufio.NewReaderSize(fd, 4096)
 
 	routers := []Router{}
@@ -21,9 +21,8 @@ func configParser(fd *os.File) error {
 	var initLink = false
 	var returnCount = 0
 	var marginReturn = 2
-	var isRouter = true
+	var isLink = false
 
-	var linkType LinkType
 	var router Router
 	var link Link
 
@@ -46,7 +45,7 @@ func configParser(fd *os.File) error {
 
 		if line == "" {
 			returnCount++
-			if returnCount == 1 && !isRouter {
+			if returnCount == 1 && isLink {
 				// end link
 				router.Links = append(router.Links, link)
 			}
@@ -58,48 +57,47 @@ func configParser(fd *os.File) error {
 			if initLink {
 				// start link
 				link = Link{}
-				isRouter = false
+				isLink = true
 				next = false
 				initLink = false
 				linkTypeStr := strings.Trim(strings.Split(line, ":")[1], " ")
 				switch linkTypeStr {
 				case "a Transit Network":
-					linkType = TransitNetwork
+					link.Type = TransitNetwork
+					link.Transit = &TransitInfo{}
 					break
 				case "Stub Network":
-					linkType = StubNetwork
+					link.Type = StubNetwork
+					link.Stub = &StubInfo{}
 					break
 				case "another Router (point-to-point)":
-					linkType = P2PNetwork
+					link.Type = P2PNetwork
+					link.P2P = &P2PInfo{}
 					break
 				default:
-					return fmt.Errorf("invalid network type: %s", linkTypeStr)
+					return nil, fmt.Errorf("invalid network type: %s", linkTypeStr)
 				}
 			}
 			if initRouter {
 				// start router
 				router = Router{}
-				isRouter = true
 				next = false
 				initRouter = false
 			}
 			if returnCount == 0 {
 				// continuous line
-				if isRouter {
+				if !isLink {
 					setAttr(reflect.ValueOf(&router), line, "vyos")
 				} else {
-					switch linkType {
+					switch link.Type {
 					case TransitNetwork:
-						link.Type = TransitNetwork
-						setAttr(reflect.ValueOf(&link.Transit), line, "vyos")
+						setAttr(reflect.ValueOf(link.Transit), line, "vyos")
 						break
 					case StubNetwork:
-						link.Type = StubNetwork
-						setAttr(reflect.ValueOf(&link.Stub), line, "vyos")
+						setAttr(reflect.ValueOf(link.Stub), line, "vyos")
 						break
 					case P2PNetwork:
-						link.Type = P2PNetwork
-						setAttr(reflect.ValueOf(&link.P2P), line, "vyos")
+						setAttr(reflect.ValueOf(link.P2P), line, "vyos")
 						break
 					}
 				}
@@ -108,6 +106,7 @@ func configParser(fd *os.File) error {
 				// end link space
 				next = false
 				initLink = true
+				isLink = false
 			}
 			if returnCount >= 2 {
 				// end router space
@@ -117,8 +116,7 @@ func configParser(fd *os.File) error {
 			returnCount = 0
 		}
 	}
-	fmt.Printf("%+v\n", routers)
-	return nil
+	return &routers, nil
 }
 
 func setAttr(ref reflect.Value, line string, keyword string) error {
@@ -130,7 +128,6 @@ func setAttr(ref reflect.Value, line string, keyword string) error {
 		field := ref.Elem().Type().Field(i)
 		tag, ok := field.Tag.Lookup(keyword)
 		if ok && tag == key {
-
 			switch field.Type.Kind() {
 			case reflect.String:
 				ref.Elem().Field(i).Set(reflect.ValueOf(value))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -24,10 +25,16 @@ func _main() error {
 		return err
 	}
 	defer fd.Close()
-	err = configParser(fd)
+	routers, err := configParser(fd)
 	if err != nil {
 		return err
 	}
+
+	body, err := json.Marshal(routers)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", body)
 
 	return nil
 }
@@ -47,24 +54,24 @@ type Router struct {
 
 type Link struct {
 	Type    LinkType
-	Stub    StubInfo
-	Transit TransitInfo
-	P2P     P2PInfo
+	Stub    *StubInfo    `json:"stub,omitempty"`
+	Transit *TransitInfo `json:"transit,omitempty"`
+	P2P     *P2PInfo     `json:"p2p,omitempty"`
 }
 type StubInfo struct {
-	Network string `vyos:"(Link ID) Net"`
-	Mask    string `vyos:"(Link Data) Network Mask"`
-	Cost    int    `vyos:"TOS 0 Metric"`
+	Network string `json:"network" vyos:"(Link ID) Net"`
+	Mask    string `json:"mask"    vyos:"(Link Data) Network Mask"`
+	Cost    int    `json:"cost"    vyos:"TOS 0 Metric"`
 }
 type TransitInfo struct {
-	DR        string `vyos:"(Link ID) Designated Router address"`
-	Interface string `vyos:"(Link Data) Router Interface address"`
-	Cost      int    `vyos:"TOS 0 Metric"`
+	DR        string `json:"dr"        vyos:"(Link ID) Designated Router address"`
+	Interface string `json:"interface" vyos:"(Link Data) Router Interface address"`
+	Cost      int    `json:"cost"      vyos:"TOS 0 Metric"`
 }
 type P2PInfo struct {
-	Neighbor  string `vyos:"(Link ID) Neighboring Router ID"`
-	Interface string `vyos:"(Link Data) Router Interface address"`
-	Cost      int    `vyos:"TOS 0 Metric"`
+	Neighbor  string `json:"neighbor"  vyos:"(Link ID) Neighboring Router ID"`
+	Interface string `json:"interface" vyos:"(Link Data) Router Interface address"`
+	Cost      int    `json:"cost"      vyos:"TOS 0 Metric"`
 }
 
 var indentMatch = regexp.MustCompile(`^(\s)*`)
