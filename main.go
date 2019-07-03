@@ -62,8 +62,9 @@ type TransitInfo struct {
 	Cost      int    `vyos:"TOS 0 Metric"`
 }
 type P2PInfo struct {
-	Neighbor string `vyos:"(Link ID) Neighboring Router ID"`
-	Cost     int    `vyos:"TOS 0 Metric"`
+	Neighbor  string `vyos:"(Link ID) Neighboring Router ID"`
+	Interface string `vyos:"(Link Data) Router Interface address"`
+	Cost      int    `vyos:"TOS 0 Metric"`
 }
 
 var indentMatch = regexp.MustCompile(`^(\s)*`)
