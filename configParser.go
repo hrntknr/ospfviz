@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"os"
 	"reflect"
 	"strconv"
@@ -52,6 +53,11 @@ func configParser(fd *os.File) (*[]Router, error) {
 			}
 			if returnCount == 2 {
 				// end router
+				addr, err := net.LookupAddr(router.RouterID)
+				if err != nil {
+					continue
+				}
+				router.HostName = addr
 				routers = append(routers, router)
 			}
 		} else {

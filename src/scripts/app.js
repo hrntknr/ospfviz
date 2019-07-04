@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as d3 from 'd3';
+import {Netmask} from 'netmask';
 
 const width = 1920;
 const height = 1080;
@@ -25,8 +26,9 @@ function drag(simulation) {
     .on('end', dragended);
 }
 
+const tooltip = d3.select('body').append('div').attr('class', 'tooltip');
+
 axios.get('/api/ospf').then(({data: routers})=>{
-  console.log(routers);
   const links = [
   ];
   const nodes = [
@@ -36,9 +38,13 @@ axios.get('/api/ospf').then(({data: routers})=>{
 
   routers.forEach((router)=>{
     nodes.push({
-      data: router,
       isRouter: true,
-      label: router.routerID,
+      isInterface: false,
+      routerID: router.routerID,
+      hostname: router.hostname,
+      advertise: router.links
+        .map((link)=>link.type == 0 && new Netmask(link.stub.network, link.stub.mask).toString())
+        .filter((d)=>d),
     });
   });
 
@@ -48,7 +54,8 @@ axios.get('/api/ospf').then(({data: routers})=>{
       case 0: {
         const source = nodes.length;
         nodes.push({
-          data: link.stub,
+          isRouter: false,
+          isInterface: false,
         });
         links.push({source, target: routerIndex});
         break;
@@ -57,12 +64,13 @@ axios.get('/api/ospf').then(({data: routers})=>{
         if (drs[link.transit.dr] == null) {
           drs[link.transit.dr] = nodes.length;
           nodes.push({
-            data: link.transit.dr,
+            isRouter: false,
+            isInterface: false,
           });
         }
         const source = nodes.length;
         nodes.push({
-          data: link,
+          isRouter: false,
           isInterface: true,
         });
         links.push({source, target: drs[link.transit.dr]});
@@ -71,18 +79,24 @@ axios.get('/api/ospf').then(({data: routers})=>{
         break;
       }
       case 2: {
-        if (p2p[`${link.p2p.neighbor}-${nodes[routerIndex].data.routerID}`] == null) {
-          p2p[`${nodes[routerIndex].data.routerID}-${link.p2p.neighbor}`] = routerIndex;
+        if (p2p[`${link.p2p.neighbor}-${nodes[routerIndex].routerID}`] == null) {
+          p2p[`${nodes[routerIndex].routerID}-${link.p2p.neighbor}`] = routerIndex;
         } else {
           const source1 = nodes.length;
-          nodes.push({isInterface: true});
+          nodes.push({
+            isRouter: false,
+            isInterface: true,
+          });
           links.push({source: source1, target: routerIndex, isInterfaceLink: true});
 
           const source2 = nodes.length;
-          nodes.push({isInterface: true});
+          nodes.push({
+            isRouter: false,
+            isInterface: true,
+          });
           links.push({source: source1, target: source2});
 
-          const target =p2p[`${link.p2p.neighbor}-${nodes[routerIndex].data.routerID}`];
+          const target =p2p[`${link.p2p.neighbor}-${nodes[routerIndex].routerID}`];
           links.push({source: source2, target, isInterfaceLink: true});
         }
         break;
@@ -97,7 +111,6 @@ axios.get('/api/ospf').then(({data: routers})=>{
   const simulation = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links))
     .force('link', d3.forceLink(links).id((d)=>d.id).distance(0).strength((link)=>link.isInterfaceLink ? 3 : 1))
-    // .force('link', d3.forceLink(links.filter((link)=>link.isInterfaceLink)).id((d)=>d.id).distance(0).strength(1.5))
     .force('charge', d3.forceManyBody().strength(-50))
     .force('x', d3.forceX())
     .force('y', d3.forceY());
@@ -120,14 +133,31 @@ axios.get('/api/ospf').then(({data: routers})=>{
     .attr('r', (d)=>d.isRouter ? 10 : 3.5)
     .attr('fill', (d)=>d.isInterface || d.isRouter ? '#fff' : '#000')
     .attr('stroke', (d)=>d.isInterface || d.isRouter ? '#000' : '#fff')
-    .call(drag(simulation));
+    .call(drag(simulation))
+    .on('mouseover', (d)=>{
+      if (d.isRouter) {
+        let html = `<p>RouterID : ${d.routerID}</p>`;
+        if (d.hostname.length != 0) html+=d.hostname.map((hostname)=>`<p>${hostname}</p>`).join();
+        if (d.advertise.length != 0) html+=`Advertise Networks<br>${d.advertise.join('<br>')}`;
+        tooltip
+          .style('visibility', 'visible')
+          .html(html);
+      }
+    })
+    .on('mousemove', (d)=>{
+      if (d.isRouter) {
+        tooltip
+          .style('top', (d3.event.pageY - 20) + 'px')
+          .style('left', (d3.event.pageX + 10) + 'px');
+      }
+    })
+    .on('mouseout', (d)=>{
+      if (d.isRouter) {
+        tooltip.style('visibility', 'hidden');
+      }
+    });
 
-  const text = node.append('text')
-    .attr('dx', 20)
-    .attr('dy', 0)
-    .text((d)=>d.label ? d.label : '');
-
-  simulation.on('tick', () => {
+  simulation.on('tick', ()=>{
     link
       .attr('x1', (d)=>d.source.x)
       .attr('y1', (d)=>d.source.y)
@@ -136,9 +166,6 @@ axios.get('/api/ospf').then(({data: routers})=>{
     node
       .attr('cx', (d)=>d.x)
       .attr('cy', (d)=>d.y);
-    text
-      .attr('x', (d)=>d.x)
-      .attr('y', (d)=>d.y);
   });
 
   document.getElementById('app').appendChild(svg.node());

@@ -27,6 +27,7 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"message": err.Error(),
 			})
+			return
 		}
 		defer fd.Close()
 		routers, err := configParser(fd)
@@ -51,8 +52,9 @@ const (
 )
 
 type Router struct {
-	RouterID string `json:"routerID" vyos:"Advertising Router"`
-	Links    []Link `json:"links"`
+	RouterID string   `json:"routerID" vyos:"Advertising Router"`
+	HostName []string `json:"hostname"`
+	Links    []Link   `json:"links"`
 }
 
 type Link struct {

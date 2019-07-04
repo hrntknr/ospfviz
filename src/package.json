@@ -19,6 +19,7 @@
     "babel-polyfill": "^6.26.0",
     "css-loader": "^3.0.0",
     "d3": "^5.9.7",
+    "netmask": "^1.0.6",
     "style-loader": "^0.23.1",
     "url-loader": "^2.0.1",
     "webpack": "^4.35.2",
