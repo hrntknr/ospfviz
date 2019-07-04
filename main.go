@@ -1,42 +1,45 @@
 package main
 
 import (
-	"encoding/json"
-	"flag"
-	"fmt"
+	"net/http"
 	"os"
 	"regexp"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	err := _main()
-	if err != nil {
-		fmt.Printf("%s", err)
-	}
-}
+	r := gin.New()
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
 
-func _main() error {
-	var (
-		config = flag.String("config", "router_database", "router database file.(show ip ospf database router)")
-	)
-	flag.Parse()
-	fd, err := os.Open(*config)
-	if err != nil {
-		return err
-	}
-	defer fd.Close()
-	routers, err := configParser(fd)
-	if err != nil {
-		return err
-	}
+	r.LoadHTMLGlob("./templates/*.html")
 
-	body, err := json.Marshal(routers)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%s\n", body)
+	r.GET("/", func(ctx *gin.Context) {
+		ctx.HTML(200, "index.html", gin.H{})
+	})
 
-	return nil
+	r.StaticFile("/build.js", "./static/build.js")
+
+	r.GET("/api/ospf", func(c *gin.Context) {
+		fd, err := os.Open("router_database")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": err.Error(),
+			})
+		}
+		defer fd.Close()
+		routers, err := configParser(fd)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": err.Error(),
+			})
+			return
+		}
+		c.JSON(200, routers)
+	})
+
+	r.Run()
 }
 
 type LinkType uint8
@@ -48,12 +51,12 @@ const (
 )
 
 type Router struct {
-	RouterID string `vyos:"Advertising Router"`
-	Links    []Link
+	RouterID string `json:"routerID" vyos:"Advertising Router"`
+	Links    []Link `json:"links"`
 }
 
 type Link struct {
-	Type    LinkType
+	Type    LinkType     `json:"type"`
 	Stub    *StubInfo    `json:"stub,omitempty"`
 	Transit *TransitInfo `json:"transit,omitempty"`
 	P2P     *P2PInfo     `json:"p2p,omitempty"`

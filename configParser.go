@@ -48,6 +48,7 @@ func configParser(fd *os.File) (*[]Router, error) {
 			if returnCount == 1 && isLink {
 				// end link
 				router.Links = append(router.Links, link)
+				isLink = false
 			}
 			if returnCount == 2 {
 				// end router
@@ -106,7 +107,6 @@ func configParser(fd *os.File) (*[]Router, error) {
 				// end link space
 				next = false
 				initLink = true
-				isLink = false
 			}
 			if returnCount >= 2 {
 				// end router space
