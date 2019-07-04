@@ -66,7 +66,7 @@ axios.get('/api/ospf').then(({data: routers})=>{
           isInterface: true,
         });
         links.push({source, target: drs[link.transit.dr]});
-        links.push({source, target: routerIndex});
+        links.push({source, target: routerIndex, isInterfaceLink: true});
         drs[link.transit.dr];
         break;
       }
@@ -74,8 +74,16 @@ axios.get('/api/ospf').then(({data: routers})=>{
         if (p2p[`${link.p2p.neighbor}-${nodes[routerIndex].data.routerID}`] == null) {
           p2p[`${nodes[routerIndex].data.routerID}-${link.p2p.neighbor}`] = routerIndex;
         } else {
-          const source = p2p[`${link.p2p.neighbor}-${nodes[routerIndex].data.routerID}`];
-          links.push({source, target: routerIndex});
+          const source1 = nodes.length;
+          nodes.push({isInterface: true});
+          links.push({source: source1, target: routerIndex, isInterfaceLink: true});
+
+          const source2 = nodes.length;
+          nodes.push({isInterface: true});
+          links.push({source: source1, target: source2});
+
+          const target =p2p[`${link.p2p.neighbor}-${nodes[routerIndex].data.routerID}`];
+          links.push({source: source2, target, isInterfaceLink: true});
         }
         break;
       }
@@ -88,7 +96,8 @@ axios.get('/api/ospf').then(({data: routers})=>{
 
   const simulation = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links))
-    .force('link', d3.forceLink(links).id((d) => d.id).distance(0).strength(1.5))
+    .force('link', d3.forceLink(links).id((d)=>d.id).distance(0).strength((link)=>link.isInterfaceLink ? 3 : 1))
+    // .force('link', d3.forceLink(links.filter((link)=>link.isInterfaceLink)).id((d)=>d.id).distance(0).strength(1.5))
     .force('charge', d3.forceManyBody().strength(-50))
     .force('x', d3.forceX())
     .force('y', d3.forceY());
