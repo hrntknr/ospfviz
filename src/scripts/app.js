@@ -42,7 +42,7 @@ axios.get('/api/ospf').then(({data: routers})=>{
       isInterface: false,
       routerID: router.routerID,
       hostname: router.hostname,
-      advertise: router.links
+      links: router.links
         .map((link)=>link.type == 0 && new Netmask(link.stub.network, link.stub.mask).toString())
         .filter((d)=>d),
     });
@@ -138,7 +138,7 @@ axios.get('/api/ospf').then(({data: routers})=>{
       if (d.isRouter) {
         let html = `<p>RouterID : ${d.routerID}</p>`;
         if (d.hostname.length != 0) html+=d.hostname.map((hostname)=>`<p>${hostname}</p>`).join();
-        if (d.advertise.length != 0) html+=`Advertise Networks<br>${d.advertise.join('<br>')}`;
+        if (d.links.length != 0) html+=`Links<br>${d.links.join('<br>')}`;
         tooltip
           .style('visibility', 'visible')
           .html(html);
