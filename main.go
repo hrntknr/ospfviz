@@ -38,39 +38,3 @@ func main() {
 
 	r.Run()
 }
-
-type LinkType uint8
-
-const (
-	StubNetwork    LinkType = 0
-	TransitNetwork LinkType = 1
-	P2PNetwork     LinkType = 2
-)
-
-type Router struct {
-	RouterID string   `json:"routerID"`
-	HostName []string `json:"hostname"`
-	Links    []Link   `json:"links"`
-}
-
-type Link struct {
-	Type    LinkType     `json:"type"`
-	Stub    *StubInfo    `json:"stub,omitempty"`
-	Transit *TransitInfo `json:"transit,omitempty"`
-	P2P     *P2PInfo     `json:"p2p,omitempty"`
-}
-type StubInfo struct {
-	Network string `json:"network"`
-	Mask    string `json:"mask"`
-	Cost    int    `json:"cost"`
-}
-type TransitInfo struct {
-	DR        string `json:"dr"`
-	Interface string `json:"interface"`
-	Cost      int    `json:"cost"`
-}
-type P2PInfo struct {
-	Neighbor  string `json:"neighbor"`
-	Interface string `json:"interface"`
-	Cost      int    `json:"cost"`
-}
