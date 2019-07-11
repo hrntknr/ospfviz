@@ -1,14 +1,23 @@
 package main
 
 import (
+	"flag"
 	"net/http"
-	"os"
-	"regexp"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	var (
+		pcapIf = flag.String("i", "eth0", "inetrface")
+	)
+	flag.Parse()
+
+	err := startPcap(*pcapIf)
+	if err != nil {
+		panic(err)
+	}
+
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
@@ -22,22 +31,9 @@ func main() {
 	r.StaticFile("/build.js", "./static/build.js")
 
 	r.GET("/api/ospf", func(c *gin.Context) {
-		fd, err := os.Open("router_database")
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		defer fd.Close()
-		routers, err := configParser(fd)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		c.JSON(200, routers)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "not implement exception",
+		})
 	})
 
 	r.Run()
@@ -52,7 +48,7 @@ const (
 )
 
 type Router struct {
-	RouterID string   `json:"routerID" vyos:"Advertising Router"`
+	RouterID string   `json:"routerID"`
 	HostName []string `json:"hostname"`
 	Links    []Link   `json:"links"`
 }
@@ -64,20 +60,17 @@ type Link struct {
 	P2P     *P2PInfo     `json:"p2p,omitempty"`
 }
 type StubInfo struct {
-	Network string `json:"network" vyos:"(Link ID) Net"`
-	Mask    string `json:"mask"    vyos:"(Link Data) Network Mask"`
-	Cost    int    `json:"cost"    vyos:"TOS 0 Metric"`
+	Network string `json:"network"`
+	Mask    string `json:"mask"`
+	Cost    int    `json:"cost"`
 }
 type TransitInfo struct {
-	DR        string `json:"dr"        vyos:"(Link ID) Designated Router address"`
-	Interface string `json:"interface" vyos:"(Link Data) Router Interface address"`
-	Cost      int    `json:"cost"      vyos:"TOS 0 Metric"`
+	DR        string `json:"dr"`
+	Interface string `json:"interface"`
+	Cost      int    `json:"cost"`
 }
 type P2PInfo struct {
-	Neighbor  string `json:"neighbor"  vyos:"(Link ID) Neighboring Router ID"`
-	Interface string `json:"interface" vyos:"(Link Data) Router Interface address"`
-	Cost      int    `json:"cost"      vyos:"TOS 0 Metric"`
+	Neighbor  string `json:"neighbor"`
+	Interface string `json:"interface"`
+	Cost      int    `json:"cost"`
 }
-
-var indentMatch = regexp.MustCompile(`^(\s)*`)
-var attrMatch = regexp.MustCompile(`^(.+)(:\s(.+))+`)
