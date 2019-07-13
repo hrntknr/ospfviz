@@ -13,7 +13,12 @@ func main() {
 	)
 	flag.Parse()
 
-	err := startPcap(*pcapIf)
+	ospf, err := NewOSPF()
+	if err != nil {
+		panic(err)
+	}
+
+	err = ospf.StartPcap(*pcapIf)
 	if err != nil {
 		panic(err)
 	}
@@ -31,9 +36,7 @@ func main() {
 	r.StaticFile("/build.js", "./static/build.js")
 
 	r.GET("/api/ospf", func(c *gin.Context) {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "not implement exception",
-		})
+		c.JSON(http.StatusOK, ospf.LSDB)
 	})
 
 	r.Run()
