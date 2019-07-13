@@ -40,47 +40,18 @@ axios.get('/api/ospf').then(({data: routers})=>{
     nodes.push({
       isRouter: true,
       isInterface: false,
-      routerID: router.routerID,
-      hostname: router.hostname,
-      links: router.links
-        .map((link)=>link.type == 0 && new Netmask(link.stub.network, link.stub.mask).toString())
-        .filter((d)=>d),
+      routerID: router.advRouter,
+      links: router.links,
+      // hostname: router.hostname,
     });
   });
 
   routers.forEach((router, routerIndex)=>{
     router.links.forEach((link)=>{
       switch (link.type) {
-      case 0: {
-        const source = nodes.length;
-        nodes.push({
-          isRouter: false,
-          isInterface: false,
-        });
-        links.push({source, target: routerIndex});
-        break;
-      }
       case 1: {
-        if (drs[link.transit.dr] == null) {
-          drs[link.transit.dr] = nodes.length;
-          nodes.push({
-            isRouter: false,
-            isInterface: false,
-          });
-        }
-        const source = nodes.length;
-        nodes.push({
-          isRouter: false,
-          isInterface: true,
-        });
-        links.push({source, target: drs[link.transit.dr]});
-        links.push({source, target: routerIndex, isInterfaceLink: true});
-        drs[link.transit.dr];
-        break;
-      }
-      case 2: {
-        if (p2p[`${link.p2p.neighbor}-${nodes[routerIndex].routerID}`] == null) {
-          p2p[`${nodes[routerIndex].routerID}-${link.p2p.neighbor}`] = routerIndex;
+        if (p2p[`${link.link.neighbor}-${nodes[routerIndex].routerID}`] == null) {
+          p2p[`${nodes[routerIndex].routerID}-${link.link.neighbor}`] = routerIndex;
         } else {
           const source1 = nodes.length;
           nodes.push({
@@ -96,12 +67,36 @@ axios.get('/api/ospf').then(({data: routers})=>{
           });
           links.push({source: source1, target: source2});
 
-          const target =p2p[`${link.p2p.neighbor}-${nodes[routerIndex].routerID}`];
+          const target = p2p[`${link.link.neighbor}-${nodes[routerIndex].routerID}`];
           links.push({source: source2, target, isInterfaceLink: true});
         }
         break;
       }
-      default: {
+      case 2: {
+        if (drs[link.link.dr] == null) {
+          drs[link.link.dr] = nodes.length;
+          nodes.push({
+            isRouter: false,
+            isInterface: false,
+          });
+        }
+        const source = nodes.length;
+        nodes.push({
+          isRouter: false,
+          isInterface: true,
+        });
+        links.push({source, target: drs[link.link.dr]});
+        links.push({source, target: routerIndex, isInterfaceLink: true});
+        drs[link.link.dr];
+        break;
+      }
+      case 3: {
+        const source = nodes.length;
+        nodes.push({
+          isRouter: false,
+          isInterface: false,
+        });
+        links.push({source, target: routerIndex});
         break;
       }
       }
@@ -136,9 +131,14 @@ axios.get('/api/ospf').then(({data: routers})=>{
     .call(drag(simulation))
     .on('mouseover', (d)=>{
       if (d.isRouter) {
-        let html = `<p>RouterID : ${d.routerID}</p>`;
-        if (d.hostname.length != 0) html+=d.hostname.map((hostname)=>`<p>${hostname}</p>`).join();
-        if (d.links.length != 0) html+=`Links<br>${d.links.join('<br>')}`;
+        let html = `<p>${d.routerID}</p>`;
+        // if (d.hostname.length != 0) html+=d.hostname.map((hostname)=>`<p>${hostname}</p>`).join();
+        if (d.links.length != 0) {
+          html+=`Links<br>${d.links
+            .filter((link)=>link.type==3)
+            .map((link)=>`${link.link.network}/${link.link.mask}`)
+            .join('<br>')}`;
+        }
         tooltip
           .style('visibility', 'visible')
           .html(html);

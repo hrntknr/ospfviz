@@ -32,12 +32,12 @@ type LSDBv2Item struct {
 	LSSeqNumber uint32      `json:"lsSeqNumber"`
 	LSAge       uint16      `json:"lsAge"`
 	LSChecksum  uint16      `json:"lsChecksum"`
-	Content     interface{} `json:"content"`
+	Content     interface{} `json:"links"`
 }
 
 type RouterLSAv2 struct {
 	LinkType uint8       `json:"type"`
-	Link     interface{} `json:"links"`
+	Link     interface{} `json:"link"`
 }
 
 type Stubv2 struct {
