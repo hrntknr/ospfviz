@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
+	"github.com/hrntknr/gopacket"
+	"github.com/hrntknr/gopacket/layers"
+	"github.com/hrntknr/gopacket/pcap"
 )
 
 type LSDBv2 struct {
