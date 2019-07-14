@@ -89,7 +89,7 @@ func int2mask(nn uint32) net.IPMask {
 
 func (ospf *OSPF) updateLSDBv2(lsa *layers.LSA) {
 	for i, lsdbItem := range ospf.LSDB {
-		if lsdbItem.LSType == lsa.LSAge && lsdbItem.ADVRouter == lsa.AdvRouter && lsdbItem.LinkStateID == lsa.LinkStateID {
+		if lsdbItem.LSType == lsa.LSType && lsdbItem.ADVRouter == lsa.AdvRouter && lsdbItem.LinkStateID == lsa.LinkStateID {
 			if lsa.LSSeqNumber > lsdbItem.LSSeqNumber {
 				ospf.updateLSDBv2Index(lsa, i)
 			} else if lsa.LSSeqNumber == lsdbItem.LSSeqNumber {
@@ -231,12 +231,16 @@ func (ospf *OSPF) StartPcap(pcapIf string) error {
 					offset++
 				}
 			}
-			// print("\033[H\033[2J")
-			// body, err := json.Marshal(lsdb)
+			// body, err := json.Marshal(ospf.LSDB)
 			// if err != nil {
 			// 	fmt.Printf("%s\n", err)
 			// }
-			// fmt.Printf("%s\n", body)
+			// var buf bytes.Buffer
+			// err = json.Indent(&buf, body, "", "  ")
+			// if err != nil {
+			// 	panic(err)
+			// }
+			// fmt.Printf("%s\n", buf.String())
 		}
 	}()
 	return nil
