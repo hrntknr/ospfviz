@@ -28,6 +28,7 @@ func NewOSPF() (*OSPF, error) {
 type LSDBv2Item struct {
 	LSType      uint16      `json:"lsType"`
 	ADVRouter   uint32      `json:"advRouter"`
+	RouterID    string      `json:"routerID"`
 	LinkStateID uint32      `json:"linkStateID"`
 	LSSeqNumber uint32      `json:"lsSeqNumber"`
 	LSAge       uint16      `json:"lsAge"`
@@ -150,6 +151,7 @@ func (ospf *OSPF) appendLSDBv2(lsa *layers.LSA) {
 		ospf.LSDB = append(ospf.LSDB, LSDBv2Item{
 			LSType:      lsa.LSType,
 			ADVRouter:   lsa.AdvRouter,
+			RouterID:    int2ip(lsa.AdvRouter).String(),
 			LinkStateID: lsa.LinkStateID,
 			LSSeqNumber: lsa.LSSeqNumber,
 			LSAge:       lsa.LSAge,

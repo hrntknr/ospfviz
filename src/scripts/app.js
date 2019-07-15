@@ -40,7 +40,7 @@ axios.get('/api/ospf').then(({data: routers})=>{
     nodes.push({
       isRouter: true,
       isInterface: false,
-      routerID: router.advRouter,
+      routerID: router.routerID,
       links: router.links,
       // hostname: router.hostname,
     });
@@ -104,8 +104,7 @@ axios.get('/api/ospf').then(({data: routers})=>{
   });
 
   const simulation = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links))
-    .force('link', d3.forceLink(links).id((d)=>d.id).distance(0).strength((link)=>link.isInterfaceLink ? 3 : 1))
+    .force('link', d3.forceLink(links).distance(0).strength((link)=>link.isInterfaceLink ? 3 : 1))
     .force('charge', d3.forceManyBody().strength(-50))
     .force('x', d3.forceX())
     .force('y', d3.forceY());
