@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 	"time"
 
@@ -16,16 +17,17 @@ var (
 )
 
 type OSPF struct {
-	LSDB []LSDBv2Item
+	LSDBv2 []LSDBItem
+	LSDBv3 []LSDBItem
 }
 
 func NewOSPF() (*OSPF, error) {
 	return &OSPF{
-		LSDB: []LSDBv2Item{},
+		LSDBv2: []LSDBItem{},
 	}, nil
 }
 
-type LSDBv2Item struct {
+type LSDBItem struct {
 	LSType      uint16      `json:"lsType"`
 	ADVRouter   uint32      `json:"advRouter"`
 	RouterID    string      `json:"routerID"`
@@ -54,26 +56,23 @@ type P2Pv2 struct {
 	Interface string `json:"interface"`
 }
 
-type LSDBv3 struct {
-	Router []RouterLinkStatev3 `json:"router"`
-}
-
-type RouterLinkStatev3 struct {
-	LinkStateID string        `json:"linkStateID"`
-	ADVRouter   string        `json:"advRouter"`
-	Links       []interface{} `json:"links"`
+type RouterLSAv3 struct {
+	LinkType uint8       `json:"type"`
+	Link     interface{} `json:"link"`
 }
 
 type Transitv3 struct {
-	InterfaceID         string
-	NeighborInterfaceID string
-	NeighborRouterID    string
+	InterfaceID         uint32 `json:"interfaceID"`
+	NeighborInterfaceID uint32 `json:"neighborInterfaceID"`
+	NeighborADVRouter   uint32 `json:"neighborADVRouter"`
+	NeighborRouterID    string `json:"neighborRouterID"`
 }
 
 type P2Pv3 struct {
-	InterfaceID         string
-	NeighborInterfaceID string
-	NeighborRouterID    string
+	InterfaceID         uint32 `json:"interfaceID"`
+	NeighborInterfaceID uint32 `json:"neighborInterfaceID"`
+	NeighborADVRouter   uint32 `json:"neighborADVRouter"`
+	NeighborRouterID    string `json:"neighborRouterID"`
 }
 
 func int2ip(nn uint32) net.IP {
@@ -89,17 +88,17 @@ func int2mask(nn uint32) net.IPMask {
 }
 
 func (ospf *OSPF) updateLSDBv2(lsa *layers.LSA) {
-	for i, lsdbItem := range ospf.LSDB {
+	for i, lsdbItem := range ospf.LSDBv2 {
 		if lsdbItem.LSType == lsa.LSType && lsdbItem.ADVRouter == lsa.AdvRouter && lsdbItem.LinkStateID == lsa.LinkStateID {
 			if lsa.LSSeqNumber > lsdbItem.LSSeqNumber {
-				ospf.updateLSDBv2Index(lsa, i)
+				ospf.updateLSDBIndexv2(lsa, i)
 			} else if lsa.LSSeqNumber == lsdbItem.LSSeqNumber {
 				if lsa.LSChecksum > lsdbItem.LSChecksum {
-					ospf.updateLSDBv2Index(lsa, i)
+					ospf.updateLSDBIndexv2(lsa, i)
 				} else if lsa.LSAge == MAX_AGE {
-					ospf.updateLSDBv2Index(lsa, i)
+					ospf.updateLSDBIndexv2(lsa, i)
 				} else if lsa.LSAge-MAX_AGE_DIFF > lsdbItem.LSAge {
-					ospf.updateLSDBv2Index(lsa, i)
+					ospf.updateLSDBIndexv2(lsa, i)
 				}
 			}
 			break
@@ -108,8 +107,32 @@ func (ospf *OSPF) updateLSDBv2(lsa *layers.LSA) {
 	ospf.appendLSDBv2(lsa)
 }
 
-func (ospf *OSPF) updateLSDBv2Index(lsa *layers.LSA, index int) {
-	ospf.LSDB = append(ospf.LSDB[:index], ospf.LSDB[index+1:]...)
+func (ospf *OSPF) updateLSDBIndexv2(lsa *layers.LSA, index int) {
+	ospf.LSDBv2 = append(ospf.LSDBv2[:index], ospf.LSDBv2[index+1:]...)
+}
+
+func (ospf *OSPF) updateLSDBv3(lsa *layers.LSA) {
+	for i, lsdbItem := range ospf.LSDBv3 {
+		if lsdbItem.LSType == lsa.LSType && lsdbItem.ADVRouter == lsa.AdvRouter && lsdbItem.LinkStateID == lsa.LinkStateID {
+			if lsa.LSSeqNumber > lsdbItem.LSSeqNumber {
+				ospf.updateLSDBIndexv3(lsa, i)
+			} else if lsa.LSSeqNumber == lsdbItem.LSSeqNumber {
+				if lsa.LSChecksum > lsdbItem.LSChecksum {
+					ospf.updateLSDBIndexv3(lsa, i)
+				} else if lsa.LSAge == MAX_AGE {
+					ospf.updateLSDBIndexv3(lsa, i)
+				} else if lsa.LSAge-MAX_AGE_DIFF > lsdbItem.LSAge {
+					ospf.updateLSDBIndexv3(lsa, i)
+				}
+			}
+			break
+		}
+	}
+	ospf.appendLSDBv3(lsa)
+}
+
+func (ospf *OSPF) updateLSDBIndexv3(lsa *layers.LSA, index int) {
+	ospf.LSDBv3 = append(ospf.LSDBv3[:index], ospf.LSDBv3[index+1:]...)
 }
 
 func (ospf *OSPF) appendLSDBv2(lsa *layers.LSA) {
@@ -146,9 +169,60 @@ func (ospf *OSPF) appendLSDBv2(lsa *layers.LSA) {
 					},
 				})
 				break
+			default:
+				fmt.Printf("Unknown routerLSAv2 Type: %d\n", router.Type)
+				break
 			}
 		}
-		ospf.LSDB = append(ospf.LSDB, LSDBv2Item{
+		ospf.LSDBv2 = append(ospf.LSDBv2, LSDBItem{
+			LSType:      lsa.LSType,
+			ADVRouter:   lsa.AdvRouter,
+			RouterID:    int2ip(lsa.AdvRouter).String(),
+			LinkStateID: lsa.LinkStateID,
+			LSSeqNumber: lsa.LSSeqNumber,
+			LSAge:       lsa.LSAge,
+			LSChecksum:  lsa.LSChecksum,
+			Content:     content,
+		})
+		break
+	}
+}
+
+func (ospf *OSPF) appendLSDBv3(lsa *layers.LSA) {
+	switch lsa.LSType {
+	case layers.RouterLSAtype:
+		routerLSA := lsa.Content.(layers.RouterLSA)
+		content := []RouterLSAv3{}
+		for _, router := range routerLSA.Routers {
+			switch router.Type {
+			case 1:
+				content = append(content, RouterLSAv3{
+					LinkType: 1,
+					Link: P2Pv3{
+						NeighborADVRouter:   router.NeighborRouterID,
+						NeighborRouterID:    int2ip(router.NeighborRouterID).String(),
+						NeighborInterfaceID: router.NeighborInterfaceID,
+						InterfaceID:         router.InterfaceID,
+					},
+				})
+				break
+			case 2:
+				content = append(content, RouterLSAv3{
+					LinkType: 2,
+					Link: Transitv3{
+						NeighborADVRouter:   router.NeighborRouterID,
+						NeighborRouterID:    int2ip(router.NeighborRouterID).String(),
+						NeighborInterfaceID: router.NeighborInterfaceID,
+						InterfaceID:         router.InterfaceID,
+					},
+				})
+				break
+			default:
+				fmt.Printf("Unknown routerLSAv3 Type: %d\n", router.Type)
+				break
+			}
+		}
+		ospf.LSDBv3 = append(ospf.LSDBv3, LSDBItem{
 			LSType:      lsa.LSType,
 			ADVRouter:   lsa.AdvRouter,
 			RouterID:    int2ip(lsa.AdvRouter).String(),
@@ -186,38 +260,16 @@ func (ospf *OSPF) StartPcap(pcapIf string) error {
 					}
 					break
 
-					// case *layers.OSPFv3:
-					// 	switch ospfPacket.Type {
-					// 	case layers.OSPFLinkStateUpdate:
-					// 		lsu := ospfPacket.Content.(layers.LSUpdate)
-					// 		for _, lsa := range lsu.LSAs {
-					// 			switch lsa.LSType {
-					// 			case layers.RouterLSAtype:
-					// 				routerLSA := lsa.Content.(layers.RouterLSA)
-					// 				for _, router := range routerLSA.Routers {
-					// 					switch router.Type {
-					// 					case 1:
-					// 						p2p := P2Pv3{
-					// 							InterfaceID:         int2ip(router.InterfaceID),
-					// 							NeighborInterfaceID: int2ip(router.NeighborInterfaceID),
-					// 							NeighborRouterID:    int2ip(router.NeighborRouterID),
-					// 						}
-					// 						break
-					// 					case 2:
-					// 						transit := Transitv3{
-					// 							InterfaceID:         int2ip(router.InterfaceID),
-					// 							NeighborInterfaceID: int2ip(router.NeighborInterfaceID),
-					// 							NeighborRouterID:    int2ip(router.NeighborRouterID),
-					// 						}
-					// 						break
-					// 					}
-					// 				}
-					// 				break
-					// 			}
-					// 		}
-					// 		break
-					// 	}
-					// 	break
+				case *layers.OSPFv3:
+					switch ospfPacket.Type {
+					case layers.OSPFLinkStateUpdate:
+						lsu := ospfPacket.Content.(layers.LSUpdate)
+						for _, lsa := range lsu.LSAs {
+							ospf.updateLSDBv3(&lsa)
+						}
+						break
+					}
+					break
 				}
 			}
 		}
@@ -225,24 +277,23 @@ func (ospf *OSPF) StartPcap(pcapIf string) error {
 	go func() {
 		for {
 			time.Sleep(time.Second * 1)
-			offset := 0
-			for i := range ospf.LSDB {
-				ospf.LSDB[i-offset].LSAge++
-				if ospf.LSDB[i-offset].LSAge >= MAX_AGE {
-					ospf.LSDB = append(ospf.LSDB[:i-offset], ospf.LSDB[i-offset+1:]...)
+			var offset int
+			offset = 0
+			for i := range ospf.LSDBv2 {
+				ospf.LSDBv2[i-offset].LSAge++
+				if ospf.LSDBv2[i-offset].LSAge >= MAX_AGE {
+					ospf.LSDBv2 = append(ospf.LSDBv2[:i-offset], ospf.LSDBv2[i-offset+1:]...)
 					offset++
 				}
 			}
-			// body, err := json.Marshal(ospf.LSDB)
-			// if err != nil {
-			// 	fmt.Printf("%s\n", err)
-			// }
-			// var buf bytes.Buffer
-			// err = json.Indent(&buf, body, "", "  ")
-			// if err != nil {
-			// 	panic(err)
-			// }
-			// fmt.Printf("%s\n", buf.String())
+			offset = 0
+			for i := range ospf.LSDBv3 {
+				ospf.LSDBv3[i-offset].LSAge++
+				if ospf.LSDBv3[i-offset].LSAge >= MAX_AGE {
+					ospf.LSDBv3 = append(ospf.LSDBv3[:i-offset], ospf.LSDBv3[i-offset+1:]...)
+					offset++
+				}
+			}
 		}
 	}()
 	return nil

@@ -35,8 +35,12 @@ func main() {
 
 	r.StaticFile("/build.js", "./static/build.js")
 
-	r.GET("/api/ospf", func(c *gin.Context) {
-		c.JSON(http.StatusOK, ospf.LSDB)
+	r.GET("/api/ospf/v2", func(c *gin.Context) {
+		c.JSON(http.StatusOK, ospf.LSDBv2)
+	})
+
+	r.GET("/api/ospf/v3", func(c *gin.Context) {
+		c.JSON(http.StatusOK, ospf.LSDBv3)
 	})
 
 	r.Run()
