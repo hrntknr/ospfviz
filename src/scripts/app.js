@@ -94,12 +94,16 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
         break;
       }
       case 3: {
-        const source = nodes.length;
-        nodes.push({
-          isRouter: false,
-          isInterface: false,
-        });
-        links.push({source, target: routerIndex});
+        // const source = nodes.length;
+        // nodes.push({
+        //   isRouter: false,
+        //   isInterface: false,
+        // });
+        // links.push({source, target: routerIndex});
+        break;
+      }
+      default:{
+        console.log(`Unknown NetworkType ${link.type}`)
         break;
       }
       }
@@ -133,7 +137,7 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
     .call(drag(simulation))
     .on('mouseover', (d)=>{
       if (d.isRouter) {
-        let html = `<p>${int2ip(d.advRouter)}</p>${JSON.stringify(d.router)}`;
+        let html = `<p>${int2ip(d.advRouter)}</p>`;
         tooltip
           .style('visibility', 'visible')
           .html(html);
@@ -188,7 +192,7 @@ axios.get('/api/ospf/v3').then(({data: routers})=>{
   routers.forEach((router, routerIndex)=>{
     router.links.forEach((link)=>{
       switch (link.type) {
-        case 1:
+        case 1:{
           if (p2p[`${link.link.neighborADVRouter}-${nodes[routerIndex].advRouter}`] == null) {
             p2p[`${nodes[routerIndex].advRouter}-${link.link.neighborADVRouter}`] = routerIndex;
           } else {
@@ -210,9 +214,10 @@ axios.get('/api/ospf/v3').then(({data: routers})=>{
             links.push({source: source2, target, isInterfaceLink: true});
           }
           break;
-        case 2:
-          if (drs[link.link.neighborADVRouter] == null) {
-            drs[link.link.neighborADVRouter] = nodes.length;
+        }
+        case 2:{
+          if (drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`] == null) {
+            drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`] = nodes.length;
             nodes.push({
               isRouter: false,
               isInterface: false,
@@ -223,13 +228,15 @@ axios.get('/api/ospf/v3').then(({data: routers})=>{
             isRouter: false,
             isInterface: true,
           });
-          links.push({source, target: drs[link.link.neighborADVRouter]});
+          links.push({source, target: drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`]});
           links.push({source, target: routerIndex, isInterfaceLink: true});
           drs[link.link.dr];
           break;
-        default:
+        }
+        default:{
           console.log(`Unknown NetworkType ${link.type}`)
           break;
+        }
       }
     });
   });
