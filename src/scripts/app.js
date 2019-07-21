@@ -25,6 +25,10 @@ function drag(simulation) {
     .on('end', dragended);
 }
 
+function int2ip (ipInt) {
+  return ( (ipInt>>>24) +'.' + (ipInt>>16 & 255) +'.' + (ipInt>>8 & 255) +'.' + (ipInt & 255) );
+}
+
 const tooltip = d3.select('body').append('div').attr('class', 'tooltip');
 
 axios.get('/api/ospf/v2').then(({data: routers})=>{
@@ -39,7 +43,8 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
     nodes.push({
       isRouter: true,
       isInterface: false,
-      routerID: router.routerID,
+      router: router,
+      advRouter: router.advRouter,
       links: router.links,
       // hostname: router.hostname,
     });
@@ -49,8 +54,8 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
     router.links.forEach((link)=>{
       switch (link.type) {
       case 1: {
-        if (p2p[`${link.link.neighbor}-${nodes[routerIndex].routerID}`] == null) {
-          p2p[`${nodes[routerIndex].routerID}-${link.link.neighbor}`] = routerIndex;
+        if (p2p[`${link.link.linkID}-${nodes[routerIndex].advRouter}`] == null) {
+          p2p[`${nodes[routerIndex].advRouter}-${link.link.linkID}`] = routerIndex;
         } else {
           const source1 = nodes.length;
           nodes.push({
@@ -66,14 +71,14 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
           });
           links.push({source: source1, target: source2});
 
-          const target = p2p[`${link.link.neighbor}-${nodes[routerIndex].routerID}`];
+          const target = p2p[`${link.link.linkID}-${nodes[routerIndex].advRouter}`];
           links.push({source: source2, target, isInterfaceLink: true});
         }
         break;
       }
       case 2: {
-        if (drs[link.link.dr] == null) {
-          drs[link.link.dr] = nodes.length;
+        if (drs[link.link.linkID] == null) {
+          drs[link.link.linkID] = nodes.length;
           nodes.push({
             isRouter: false,
             isInterface: false,
@@ -84,9 +89,8 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
           isRouter: false,
           isInterface: true,
         });
-        links.push({source, target: drs[link.link.dr]});
+        links.push({source, target: drs[link.link.linkID]});
         links.push({source, target: routerIndex, isInterfaceLink: true});
-        drs[link.link.dr];
         break;
       }
       case 3: {
@@ -129,14 +133,7 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
     .call(drag(simulation))
     .on('mouseover', (d)=>{
       if (d.isRouter) {
-        let html = `<p>${d.routerID}</p>`;
-        // if (d.hostname.length != 0) html+=d.hostname.map((hostname)=>`<p>${hostname}</p>`).join();
-        if (d.links.length != 0) {
-          html+=`Links<br>${d.links
-            .filter((link)=>link.type==3)
-            .map((link)=>`${link.link.network}/${link.link.mask}`)
-            .join('<br>')}`;
-        }
+        let html = `<p>${int2ip(d.advRouter)}</p>${JSON.stringify(d.router)}`;
         tooltip
           .style('visibility', 'visible')
           .html(html);
@@ -183,7 +180,6 @@ axios.get('/api/ospf/v3').then(({data: routers})=>{
       isRouter: true,
       isInterface: false,
       advRouter: router.advRouter,
-      routerID: router.routerID,
       links: router.links,
       // hostname: router.hostname,
     });
@@ -265,14 +261,7 @@ axios.get('/api/ospf/v3').then(({data: routers})=>{
     .call(drag(simulation))
     .on('mouseover', (d)=>{
       if (d.isRouter) {
-        let html = `<p>${d.routerID}</p>`;
-        // if (d.hostname.length != 0) html+=d.hostname.map((hostname)=>`<p>${hostname}</p>`).join();
-        if (d.links.length != 0) {
-          html+=`Links<br>${d.links
-            .filter((link)=>link.type==3)
-            .map((link)=>`${link.link.network}/${link.link.mask}`)
-            .join('<br>')}`;
-        }
+        let html = `<p>${int2ip(d.advRouter)}</p>`;
         tooltip
           .style('visibility', 'visible')
           .html(html);

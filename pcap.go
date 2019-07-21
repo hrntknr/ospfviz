@@ -1,9 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
-	"fmt"
-	"net"
 	"time"
 
 	"github.com/hrntknr/gopacket"
@@ -30,7 +27,6 @@ func NewOSPF() (*OSPF, error) {
 type LSDBItem struct {
 	LSType      uint16      `json:"lsType"`
 	ADVRouter   uint32      `json:"advRouter"`
-	RouterID    string      `json:"routerID"`
 	LinkStateID uint32      `json:"linkStateID"`
 	LSSeqNumber uint32      `json:"lsSeqNumber"`
 	LSAge       uint16      `json:"lsAge"`
@@ -39,58 +35,30 @@ type LSDBItem struct {
 }
 
 type RouterLSAv2 struct {
-	LinkType uint8       `json:"type"`
-	Link     interface{} `json:"link"`
+	LinkType uint8  `json:"type"`
+	Link     Linkv2 `json:"link"`
 }
 
-type Stubv2 struct {
-	Network string `json:"network"`
-	Mask    string `json:"mask"`
-}
-type Transitv2 struct {
-	DR        string `json:"dr"`
-	Interface string `json:"interface"`
-}
-type P2Pv2 struct {
-	Neighbor  string `json:"neighbor"`
-	Interface string `json:"interface"`
+type Linkv2 struct {
+	LinkID    uint32 `json:"linkID"`
+	LinikData uint32 `json:"linkData"`
 }
 
 type RouterLSAv3 struct {
-	LinkType uint8       `json:"type"`
-	Link     interface{} `json:"link"`
+	LinkType uint8  `json:"type"`
+	Link     Linkv3 `json:"link"`
 }
-
-type Transitv3 struct {
+type Linkv3 struct {
 	InterfaceID         uint32 `json:"interfaceID"`
 	NeighborInterfaceID uint32 `json:"neighborInterfaceID"`
 	NeighborADVRouter   uint32 `json:"neighborADVRouter"`
-	NeighborRouterID    string `json:"neighborRouterID"`
-}
-
-type P2Pv3 struct {
-	InterfaceID         uint32 `json:"interfaceID"`
-	NeighborInterfaceID uint32 `json:"neighborInterfaceID"`
-	NeighborADVRouter   uint32 `json:"neighborADVRouter"`
-	NeighborRouterID    string `json:"neighborRouterID"`
-}
-
-func int2ip(nn uint32) net.IP {
-	ip := make(net.IP, 4)
-	binary.BigEndian.PutUint32(ip, nn)
-	return ip
-}
-
-func int2mask(nn uint32) net.IPMask {
-	mask := make(net.IPMask, 4)
-	binary.BigEndian.PutUint32(mask, nn)
-	return mask
 }
 
 func (ospf *OSPF) updateLSDBv2(lsa *layers.LSA) {
+	appendFlag := true
 	for i, lsdbItem := range ospf.LSDBv2 {
 		if lsdbItem.LSType == lsa.LSType && lsdbItem.ADVRouter == lsa.AdvRouter && lsdbItem.LinkStateID == lsa.LinkStateID {
-			if lsa.LSSeqNumber > lsdbItem.LSSeqNumber {
+			if lsa.LSSeqNumber >= lsdbItem.LSSeqNumber {
 				ospf.updateLSDBIndexv2(lsa, i)
 			} else if lsa.LSSeqNumber == lsdbItem.LSSeqNumber {
 				if lsa.LSChecksum > lsdbItem.LSChecksum {
@@ -99,12 +67,16 @@ func (ospf *OSPF) updateLSDBv2(lsa *layers.LSA) {
 					ospf.updateLSDBIndexv2(lsa, i)
 				} else if lsa.LSAge-MAX_AGE_DIFF > lsdbItem.LSAge {
 					ospf.updateLSDBIndexv2(lsa, i)
+				} else {
+					appendFlag = false
 				}
 			}
 			break
 		}
 	}
-	ospf.appendLSDBv2(lsa)
+	if appendFlag {
+		ospf.appendLSDBv2(lsa)
+	}
 }
 
 func (ospf *OSPF) updateLSDBIndexv2(lsa *layers.LSA, index int) {
@@ -112,6 +84,7 @@ func (ospf *OSPF) updateLSDBIndexv2(lsa *layers.LSA, index int) {
 }
 
 func (ospf *OSPF) updateLSDBv3(lsa *layers.LSA) {
+	appendFlag := true
 	for i, lsdbItem := range ospf.LSDBv3 {
 		if lsdbItem.LSType == lsa.LSType && lsdbItem.ADVRouter == lsa.AdvRouter && lsdbItem.LinkStateID == lsa.LinkStateID {
 			if lsa.LSSeqNumber > lsdbItem.LSSeqNumber {
@@ -123,12 +96,16 @@ func (ospf *OSPF) updateLSDBv3(lsa *layers.LSA) {
 					ospf.updateLSDBIndexv3(lsa, i)
 				} else if lsa.LSAge-MAX_AGE_DIFF > lsdbItem.LSAge {
 					ospf.updateLSDBIndexv3(lsa, i)
+				} else {
+					appendFlag = false
 				}
 			}
 			break
 		}
 	}
-	ospf.appendLSDBv3(lsa)
+	if appendFlag {
+		ospf.appendLSDBv3(lsa)
+	}
 }
 
 func (ospf *OSPF) updateLSDBIndexv3(lsa *layers.LSA, index int) {
@@ -141,43 +118,17 @@ func (ospf *OSPF) appendLSDBv2(lsa *layers.LSA) {
 		routerLSA := lsa.Content.(layers.RouterLSAV2)
 		content := []RouterLSAv2{}
 		for _, router := range routerLSA.Routers {
-			switch router.Type {
-			case 1:
-				content = append(content, RouterLSAv2{
-					LinkType: 1,
-					Link: P2Pv2{
-						Neighbor:  int2ip(router.LinkID).String(),
-						Interface: int2ip(router.LinkData).String(),
-					},
-				})
-				break
-			case 2:
-				content = append(content, RouterLSAv2{
-					LinkType: 2,
-					Link: Transitv2{
-						DR:        int2ip(router.LinkID).String(),
-						Interface: int2ip(router.LinkData).String(),
-					},
-				})
-				break
-			case 3:
-				content = append(content, RouterLSAv2{
-					LinkType: 3,
-					Link: Stubv2{
-						Network: int2ip(router.LinkID).String(),
-						Mask:    int2mask(router.LinkData).String(),
-					},
-				})
-				break
-			default:
-				fmt.Printf("Unknown routerLSAv2 Type: %d\n", router.Type)
-				break
-			}
+			content = append(content, RouterLSAv2{
+				LinkType: router.Type,
+				Link: Linkv2{
+					LinkID:    router.LinkID,
+					LinikData: router.LinkData,
+				},
+			})
 		}
 		ospf.LSDBv2 = append(ospf.LSDBv2, LSDBItem{
 			LSType:      lsa.LSType,
 			ADVRouter:   lsa.AdvRouter,
-			RouterID:    int2ip(lsa.AdvRouter).String(),
 			LinkStateID: lsa.LinkStateID,
 			LSSeqNumber: lsa.LSSeqNumber,
 			LSAge:       lsa.LSAge,
@@ -194,38 +145,18 @@ func (ospf *OSPF) appendLSDBv3(lsa *layers.LSA) {
 		routerLSA := lsa.Content.(layers.RouterLSA)
 		content := []RouterLSAv3{}
 		for _, router := range routerLSA.Routers {
-			switch router.Type {
-			case 1:
-				content = append(content, RouterLSAv3{
-					LinkType: 1,
-					Link: P2Pv3{
-						NeighborADVRouter:   router.NeighborRouterID,
-						NeighborRouterID:    int2ip(router.NeighborRouterID).String(),
-						NeighborInterfaceID: router.NeighborInterfaceID,
-						InterfaceID:         router.InterfaceID,
-					},
-				})
-				break
-			case 2:
-				content = append(content, RouterLSAv3{
-					LinkType: 2,
-					Link: Transitv3{
-						NeighborADVRouter:   router.NeighborRouterID,
-						NeighborRouterID:    int2ip(router.NeighborRouterID).String(),
-						NeighborInterfaceID: router.NeighborInterfaceID,
-						InterfaceID:         router.InterfaceID,
-					},
-				})
-				break
-			default:
-				fmt.Printf("Unknown routerLSAv3 Type: %d\n", router.Type)
-				break
-			}
+			content = append(content, RouterLSAv3{
+				LinkType: router.Type,
+				Link: Linkv3{
+					NeighborADVRouter:   router.NeighborRouterID,
+					NeighborInterfaceID: router.NeighborInterfaceID,
+					InterfaceID:         router.InterfaceID,
+				},
+			})
 		}
 		ospf.LSDBv3 = append(ospf.LSDBv3, LSDBItem{
 			LSType:      lsa.LSType,
 			ADVRouter:   lsa.AdvRouter,
-			RouterID:    int2ip(lsa.AdvRouter).String(),
 			LinkStateID: lsa.LinkStateID,
 			LSSeqNumber: lsa.LSSeqNumber,
 			LSAge:       lsa.LSAge,
