@@ -31,7 +31,7 @@ type LSDBItem struct {
 	LSSeqNumber uint32      `json:"lsSeqNumber"`
 	LSAge       uint16      `json:"lsAge"`
 	LSChecksum  uint16      `json:"lsChecksum"`
-	Content     interface{} `json:"links"`
+	Content     interface{} `json:"contents"`
 }
 
 type RouterLSAv2 struct {
@@ -48,6 +48,14 @@ type RouterLSAv3 struct {
 	LinkType uint8  `json:"type"`
 	Link     Linkv3 `json:"link"`
 }
+
+type IntraAreaPrefixLSAv3 struct {
+	AddressPrefix []byte
+	PrefixLength  uint8  `json:"prefixLength"`
+	Metric        uint16 `json:"metric"`
+	PrefixOptions uint8  `json:"prefixOptions"`
+}
+
 type Linkv3 struct {
 	InterfaceID         uint32 `json:"interfaceID"`
 	NeighborInterfaceID uint32 `json:"neighborInterfaceID"`
@@ -152,6 +160,27 @@ func (ospf *OSPF) appendLSDBv3(lsa *layers.LSA) {
 					NeighborInterfaceID: router.NeighborInterfaceID,
 					InterfaceID:         router.InterfaceID,
 				},
+			})
+		}
+		ospf.LSDBv3 = append(ospf.LSDBv3, LSDBItem{
+			LSType:      lsa.LSType,
+			ADVRouter:   lsa.AdvRouter,
+			LinkStateID: lsa.LinkStateID,
+			LSSeqNumber: lsa.LSSeqNumber,
+			LSAge:       lsa.LSAge,
+			LSChecksum:  lsa.LSChecksum,
+			Content:     content,
+		})
+		break
+	case layers.IntraAreaPrefixLSAtype:
+		IntraAreaPrefixLSA := lsa.Content.(layers.IntraAreaPrefixLSA)
+		content := []IntraAreaPrefixLSAv3{}
+		for _, prefix := range IntraAreaPrefixLSA.Prefixes {
+			content = append(content, IntraAreaPrefixLSAv3{
+				AddressPrefix: prefix.AddressPrefix,
+				PrefixLength:  prefix.PrefixLength,
+				Metric:        prefix.Metric,
+				PrefixOptions: prefix.PrefixOptions,
 			})
 		}
 		ospf.LSDBv3 = append(ospf.LSDBv3, LSDBItem{

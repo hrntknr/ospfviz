@@ -25,7 +25,7 @@ function drag(simulation) {
     .on('end', dragended);
 }
 
-function int2ip (ipInt) {
+function int2ip(ipInt) {
   return ( (ipInt>>>24) +'.' + (ipInt>>16 & 255) +'.' + (ipInt>>8 & 255) +'.' + (ipInt & 255) );
 }
 
@@ -45,13 +45,13 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
       isInterface: false,
       router: router,
       advRouter: router.advRouter,
-      links: router.links,
+      links: router.contents,
       // hostname: router.hostname,
     });
   });
 
   routers.forEach((router, routerIndex)=>{
-    router.links.forEach((link)=>{
+    router.contents.forEach((link)=>{
       switch (link.type) {
       case 1: {
         if (p2p[`${link.link.linkID}-${nodes[routerIndex].advRouter}`] == null) {
@@ -94,16 +94,16 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
         break;
       }
       case 3: {
-        // const source = nodes.length;
-        // nodes.push({
-        //   isRouter: false,
-        //   isInterface: false,
-        // });
-        // links.push({source, target: routerIndex});
+        const source = nodes.length;
+        nodes.push({
+          isRouter: false,
+          isInterface: false,
+        });
+        links.push({source, target: routerIndex});
         break;
       }
-      default:{
-        console.log(`Unknown NetworkType ${link.type}`)
+      default: {
+        console.log(`Unknown NetworkType ${link.type}`);
         break;
       }
       }
@@ -137,7 +137,7 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
     .call(drag(simulation))
     .on('mouseover', (d)=>{
       if (d.isRouter) {
-        let html = `<p>${int2ip(d.advRouter)}</p>`;
+        const html = `<p>${int2ip(d.advRouter)}</p>`;
         tooltip
           .style('visibility', 'visible')
           .html(html);
@@ -171,74 +171,90 @@ axios.get('/api/ospf/v2').then(({data: routers})=>{
 });
 
 
-axios.get('/api/ospf/v3').then(({data: routers})=>{
+axios.get('/api/ospf/v3').then(({data})=>{
   const links = [
   ];
   const nodes = [
   ];
   const drs = {};
   const p2p = {};
+  const advRouters = {};
+  const routers = data.filter((router)=>router.lsType == 0x2001);
+  const stubs = data.filter((router)=>router.lsType == 0x2009);
 
   routers.forEach((router)=>{
-    nodes.push({
-      isRouter: true,
-      isInterface: false,
-      advRouter: router.advRouter,
-      links: router.links,
+    if (router.lsType == 0x2001) {
+      const routerIndex = nodes.length;
+      nodes.push({
+        isRouter: true,
+        isInterface: false,
+        advRouter: router.advRouter,
+        links: router.contents,
       // hostname: router.hostname,
-    });
+      });
+      advRouters[router.advRouter] = routerIndex;
+    }
   });
 
   routers.forEach((router, routerIndex)=>{
-    router.links.forEach((link)=>{
+    router.contents.forEach((link)=>{
       switch (link.type) {
-        case 1:{
-          if (p2p[`${link.link.neighborADVRouter}-${nodes[routerIndex].advRouter}`] == null) {
-            p2p[`${nodes[routerIndex].advRouter}-${link.link.neighborADVRouter}`] = routerIndex;
-          } else {
-            const source1 = nodes.length;
-            nodes.push({
-              isRouter: false,
-              isInterface: true,
-            });
-            links.push({source: source1, target: routerIndex, isInterfaceLink: true});
-
-            const source2 = nodes.length;
-            nodes.push({
-              isRouter: false,
-              isInterface: true,
-            });
-            links.push({source: source1, target: source2});
-
-            const target = p2p[`${link.link.neighborADVRouter}-${nodes[routerIndex].advRouter}`];
-            links.push({source: source2, target, isInterfaceLink: true});
-          }
-          break;
-        }
-        case 2:{
-          if (drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`] == null) {
-            drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`] = nodes.length;
-            nodes.push({
-              isRouter: false,
-              isInterface: false,
-            });
-          }
-          const source = nodes.length;
+      case 1: {
+        if (p2p[`${link.link.neighborADVRouter}-${nodes[routerIndex].advRouter}`] == null) {
+          p2p[`${nodes[routerIndex].advRouter}-${link.link.neighborADVRouter}`] = routerIndex;
+        } else {
+          const source1 = nodes.length;
           nodes.push({
             isRouter: false,
             isInterface: true,
           });
-          links.push({source, target: drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`]});
-          links.push({source, target: routerIndex, isInterfaceLink: true});
-          drs[link.link.dr];
-          break;
+          links.push({source: source1, target: routerIndex, isInterfaceLink: true});
+
+          const source2 = nodes.length;
+          nodes.push({
+            isRouter: false,
+            isInterface: true,
+          });
+          links.push({source: source1, target: source2});
+
+          const target = p2p[`${link.link.neighborADVRouter}-${nodes[routerIndex].advRouter}`];
+          links.push({source: source2, target, isInterfaceLink: true});
         }
-        default:{
-          console.log(`Unknown NetworkType ${link.type}`)
-          break;
+        break;
+      }
+      case 2: {
+        if (drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`] == null) {
+          drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`] = nodes.length;
+          nodes.push({
+            isRouter: false,
+            isInterface: false,
+          });
         }
+        const source = nodes.length;
+        nodes.push({
+          isRouter: false,
+          isInterface: true,
+        });
+        links.push({source, target: drs[`${link.link.neighborADVRouter}-${link.link.neighborInterfaceID}`]});
+        links.push({source, target: routerIndex, isInterfaceLink: true});
+        drs[link.link.dr];
+        break;
+      }
+      default: {
+        console.log(`Unknown NetworkType ${link.type}`);
+        break;
+      }
       }
     });
+  });
+
+  stubs.forEach((stub)=>{
+    const source = nodes.length;
+    nodes.push({
+      isRouter: false,
+      isInterface: false,
+    });
+    links.push({source, target: advRouters[stub.advRouter]});
   });
 
   const simulation = d3.forceSimulation(nodes)
@@ -268,7 +284,7 @@ axios.get('/api/ospf/v3').then(({data: routers})=>{
     .call(drag(simulation))
     .on('mouseover', (d)=>{
       if (d.isRouter) {
-        let html = `<p>${int2ip(d.advRouter)}</p>`;
+        const html = `<p>${int2ip(d.advRouter)}</p>`;
         tooltip
           .style('visibility', 'visible')
           .html(html);
